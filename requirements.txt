@@ -1,0 +1,9 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+google-api-python-client>=2.120
+pandas>=2.0
+python-dotenv>=1.0
+transformers>=4.40
+torch>=2.2
+sentencepiece>=0.2
+pytest>=8.0

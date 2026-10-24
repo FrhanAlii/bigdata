@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comment Sentiment Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%273%27 fill=%27%232f6fed%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="logo" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>
+  </div>
+  <div>
+    <h1>Comment Sentiment Dashboard</h1>
+    <p class="tagline">Turn YouTube comments into clear, measurable opinion</p>
+  </div>
+</header>
+
+<main>
+  <form id="form" class="card controls">
+    <label>Mode
+      <select id="mode">
+        <option value="search">Search videos</option>
+        <option value="channel">Channel</option>
+      </select>
+    </label>
+    <label class="grow"><span id="q-label">Search query</span>
+      <input id="query" value="Pakistani clothing brand Eid collection" required maxlength="200">
+    </label>
+    <label class="only-search">Region
+      <input id="region" value="PK" maxlength="2" minlength="2" size="3">
+    </label>
+    <label class="only-search">Sort by
+      <select id="order">
+        <option value="relevance">Relevance</option>
+        <option value="viewCount">Most viewed</option>
+        <option value="date">Newest</option>
+        <option value="rating">Top rated</option>
+      </select>
+    </label>
+    <label>Topics
+      <select id="pack">
+        <option value="auto">Auto-detect</option>
+        <option value="clothing">Clothing &amp; fashion</option>
+        <option value="watches">Watches</option>
+        <option value="electronics">Phones &amp; electronics</option>
+        <option value="general">General</option>
+      </select>
+    </label>
+    <label>Videos
+      <input id="videos" type="number" min="1" max="25" value="10">
+    </label>
+    <label>Comments / video
+      <input id="comments" type="number" min="10" max="300" value="100">
+    </label>
+    <button id="go" type="submit">Analyze</button>
+  </form>
+
+  <section id="welcome" class="card welcome">
+    <h3>What do people really think?</h3>
+    <p>Search any topic or analyse a whole channel. The dashboard collects the comments, scores each one as positive, neutral or negative, and shows what viewers talk about.</p>
+    <div class="chips" aria-label="Examples">
+      <button type="button" class="chip" data-mode="search" data-q="Casio G-Shock watch review">Casio G-Shock watch review</button>
+      <button type="button" class="chip" data-mode="search" data-q="iPhone 16 review">iPhone 16 review</button>
+      <button type="button" class="chip" data-mode="search" data-q="Pakistani clothing brand Eid collection">Eid clothing brands</button>
+      <button type="button" class="chip" data-mode="channel" data-q="@mkbhd">Channel: @mkbhd</button>
+    </div>
+    <div class="steps"><span><b>1</b> Search or paste a channel</span><span><b>2</b> Comments are collected</span><span><b>3</b> AI scores every comment</span></div>
+  </section>
+
+  <section id="progress" class="card" hidden>
+    <div id="stage">Starting…</div>
+    <div class="bar"><div id="bar-fill"></div></div>
+  </section>
+  <section id="error" class="card error" hidden></section>
+  <section id="warn" class="card warn" hidden></section>
+
+  <div id="results" hidden>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Scope">
+        <button data-scope="all" class="on">All comments</button>
+        <button data-scope="ontopic">On-topic only</button>
+      </div>
+      <span id="meta" class="muted"></span>
+      <a id="export" class="btn" href="#">Download CSV</a>
+    </div>
+
+    <section class="kpis" id="kpis"></section>
+
+    <section class="grid">
+      <div class="card"><h2>Sentiment split</h2><div class="chart"><canvas id="c-sent"></canvas></div></div>
+      <div class="card"><h2>Topic mentions</h2><div class="chart"><canvas id="c-topic"></canvas></div></div>
+      <div class="card wide"><h2>Topic by sentiment</h2><div class="chart"><canvas id="c-topic-sent"></canvas></div></div>
+      <div class="card wide"><h2>Sentiment by video</h2><div class="chart tall"><canvas id="c-video"></canvas></div></div>
+      <div class="card"><h2>Model confidence</h2><div class="chart"><canvas id="c-conf"></canvas></div></div>
+      <div class="card"><h2>Most used words</h2><div class="chart"><canvas id="c-words"></canvas></div></div>
+    </section>
+
+    <section class="card">
+      <h2>Comments</h2>
+      <div class="filters">
+        <input id="search" type="search" placeholder="Search comments…">
+        <select id="f-sent"><option value="">All sentiments</option><option>Positive</option><option>Neutral</option><option>Negative</option></select>
+        <select id="f-topic"><option value="">All topics</option></select>
+        <label class="check"><input type="checkbox" id="f-review"> Needs review</label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Comment</th><th>Sentiment</th><th>Conf.</th><th>Topics</th><th>Likes</th><th>Video</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button id="prev" class="ghost">Prev</button>
+        <span id="page-info" class="muted"></span>
+        <button id="next" class="ghost">Next</button>
+      </div>
+    </section>
+  </div>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
