@@ -102,6 +102,39 @@
       <div class="card"><h2>Most used words</h2><div class="chart"><canvas id="c-words"></canvas></div></div>
     </section>
 
+    <section class="card" id="budget">
+      <h2>Budget optimizer</h2>
+      <p class="muted">Enter an ad budget and get a platform split based on how people feel in these comments.</p>
+      <form id="budget-form" class="controls">
+        <label>Budget
+          <input id="b-amount" type="number" min="1" step="any" value="100000" required>
+        </label>
+        <label>Currency
+          <select id="b-currency"><option>PKR</option><option>USD</option><option>GBP</option><option>EUR</option></select>
+        </label>
+        <label>Goal
+          <select id="b-goal">
+            <option value="sales">Sales</option>
+            <option value="awareness">Awareness</option>
+            <option value="engagement">Engagement</option>
+          </select>
+        </label>
+        <button id="b-go" type="submit">Optimize budget</button>
+      </form>
+      <div id="b-error" class="error-text" hidden></div>
+      <div id="b-out" hidden>
+        <p id="b-headline" class="b-headline"></p>
+        <div class="b-grid">
+          <div class="chart"><canvas id="c-budget"></canvas></div>
+          <div id="b-cards" class="b-cards"></div>
+        </div>
+        <h2>Rollout plan</h2>
+        <div id="b-phases" class="b-phases"></div>
+        <ul id="b-risks" class="b-risks"></ul>
+        <p id="b-note" class="muted"></p>
+      </div>
+    </section>
+
     <section class="card">
       <h2>Comments</h2>
       <div class="filters">

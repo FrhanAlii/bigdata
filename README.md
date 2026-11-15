@@ -22,3 +22,10 @@ Results for the same query are cached for 30 minutes to save YouTube quota (one 
 - **Channel** mode: a channel URL, `@handle`, channel id (`UC...`) or plain name. Analyses the channel's latest videos.
 - **Topics**: auto-detected from the query (clothing, watches, phones & electronics, general) or chosen manually. Edit the packs in `app/analysis.py` to add your own.
 - "On-topic only" keeps comments that match the selected topic pack's keywords.
+
+## Budget optimizer
+After an analysis finishes, use the **Budget optimizer** card: enter a budget, currency (PKR/USD/GBP/EUR) and goal
+(sales/awareness/engagement). The comments' sentiment mood (positive/mixed/negative), the topic pack and the goal are
+scored against 7 ad platforms; the budget is split across the best 2-4 (max 60% each, split sums exactly to your
+budget), with a campaign suggestion, estimated impressions, a test/scale/retarget plan and risks (e.g. topics with many
+negative comments). Logic is in `app/budget.py` (`POST /api/budget`). Figures are planning estimates, not guarantees.

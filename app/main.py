@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 load_dotenv()
 
-from . import analysis, sentiment, youtube  # noqa: E402  (after load_dotenv)
+from . import analysis, budget, sentiment, youtube  # noqa: E402  (after load_dotenv)
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
 CACHE_TTL = 60 * 30
@@ -150,6 +150,25 @@ def export_csv(job_id: str):
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": "attachment; filename=comment_sentiment_results.csv"},
     )
+
+
+class BudgetRequest(BaseModel):
+    job_id: str
+    budget: float = Field(..., gt=0, le=1e9)
+    currency: Literal["PKR", "USD", "GBP", "EUR"] = "PKR"
+    goal: Literal["awareness", "sales", "engagement"] = "sales"
+
+
+@app.post("/api/budget")
+def plan_budget(req: BudgetRequest):
+    job = jobs.get(req.job_id)
+    if not job or job.get("status") != "done" or "result" not in job:
+        raise HTTPException(404, "No finished analysis with that id")
+    try:
+        profile = budget.sentiment_profile(job["result"])
+        return budget.optimize(profile, job["result"]["pack"], req.budget, req.currency, req.goal)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
 
 
 @app.get("/")

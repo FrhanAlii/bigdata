@@ -215,3 +215,51 @@ document.querySelectorAll(".chip").forEach((c) => c.onclick = () => {
   $("mode").value = c.dataset.mode; syncMode(); $("query").value = c.dataset.q;
   $("form").requestSubmit();
 });
+
+// ---- budget optimizer (Part 2) ----
+const B_COLORS = ["#4f46e5", "#1f9d6b", "#e0a526", "#e0566b"];
+const money = (n, cur) => `${cur} ${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+$("budget-form").onsubmit = async (e) => {
+  e.preventDefault();
+  show("b-error", false);
+  $("b-go").disabled = true;
+  try {
+    const res = await fetch("/api/budget", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ job_id: jobId, budget: +$("b-amount").value,
+        currency: $("b-currency").value, goal: $("b-goal").value }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : body.detail?.[0]?.msg || "Request failed");
+    renderBudget(body);
+  } catch (err) {
+    show("b-out", false);
+    $("b-error").textContent = err.message; show("b-error", true);
+  } finally {
+    $("b-go").disabled = false;
+  }
+};
+
+function renderBudget(p) {
+  show("b-out", true);
+  $("b-headline").textContent = `${p.mood[0].toUpperCase() + p.mood.slice(1)} sentiment (${p.sentiment.Positive}% positive, ${p.sentiment.Negative}% negative). ${p.headline}`;
+  $("b-cards").innerHTML = p.allocation.map((a, i) => `
+    <div class="b-card" style="border-left-color:${B_COLORS[i % 4]}">
+      <div class="top-row"><span>${esc(a.label)}</span><span>${money(a.amount, p.currency)} · ${a.percent}%</span></div>
+      <div class="sub">${esc(a.campaign)} · ~${a.est_impressions.toLocaleString()} impressions (est.)</div>
+      <div class="sub">${esc(a.why)}</div>
+    </div>`).join("");
+  $("b-phases").innerHTML = p.phases.map((x) =>
+    `<div class="b-phase"><b>${x.name} · ${money(x.amount, p.currency)} (${x.percent}%)</b>${esc(x.detail)}</div>`).join("");
+  $("b-risks").innerHTML = p.risks.map((r) => `<li>${esc(r)}</li>`).join("");
+  $("b-note").textContent = p.note;
+  mk("c-budget", { type: "doughnut", data: {
+      labels: p.allocation.map((a) => a.label),
+      datasets: [{ data: p.allocation.map((a) => a.amount), backgroundColor: p.allocation.map((_, i) => B_COLORS[i % 4]), borderColor: css("--card"), borderWidth: 2 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: "60%",
+      plugins: { legend: { position: "bottom", labels: { color: css("--text"), usePointStyle: true, boxWidth: 8 } } } } });
+}
+
+// a new analysis invalidates any earlier plan
+$("form").addEventListener("submit", () => { show("b-out", false); show("b-error", false); });

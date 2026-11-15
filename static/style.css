@@ -161,3 +161,18 @@ td a:hover { text-decoration: underline; }
   .card { padding: 16px; }
   h1 { font-size: 1.15rem; }
 }
+
+/* ---------- budget optimizer ---------- */
+#budget .controls { margin: 12px 0; }
+.error-text { color: var(--neg); font-weight: 600; margin: 8px 0; }
+.b-headline { font-weight: 600; margin: 8px 0 16px; }
+.b-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 20px; align-items: center; }
+.b-cards { display: grid; gap: 10px; }
+.b-card { border: 1px solid var(--border); border-left-width: 6px; border-radius: 12px; padding: 12px 14px; background: var(--card); }
+.b-card .top-row { display: flex; justify-content: space-between; gap: 10px; font-weight: 700; }
+.b-card .sub { color: var(--muted); font-size: .85rem; margin-top: 2px; }
+.b-phases { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.b-phase { background: var(--accent-soft); border-radius: 12px; padding: 12px 14px; }
+.b-phase b { display: block; }
+.b-risks { margin: 8px 0; padding-left: 20px; color: var(--neg); }
+@media (max-width: 720px) { .b-grid { grid-template-columns: minmax(0, 1fr); } }
