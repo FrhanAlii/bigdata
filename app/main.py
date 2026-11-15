@@ -7,22 +7,27 @@ import uuid
 from pathlib import Path
 
 import pandas as pd
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-load_dotenv()
-
-from . import analysis, budget, sentiment, youtube  # noqa: E402  (after load_dotenv)
+from . import analysis, budget, sentiment
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
-CACHE_TTL = 60 * 30
 
 app = FastAPI(title="Comment Sentiment Dashboard")
 jobs = {}
-cache = {}  # (query, region, max_videos, max_comments) -> (timestamp, job_id)
+
+
+class CommentRow(BaseModel):
+    video_id: str
+    comment_text: str
+    published_at: str
+    like_count: int = 0
+    video_title: str
+    channel: str
+    video_url: str
 
 
 class AnalyzeRequest(BaseModel):
@@ -33,44 +38,19 @@ class AnalyzeRequest(BaseModel):
     pack: Literal["auto", "clothing", "watches", "electronics", "general"] = "auto"
     max_videos: int = Field(10, ge=1, le=25)
     max_comments: int = Field(100, ge=10, le=300)
-    refresh: bool = False
-
-
-def _key(req):
-    return (req.mode, req.query.strip().lower(), req.region.upper(), req.order, req.pack,
-            req.max_videos, req.max_comments)
+    label: str = Field("", max_length=200)
+    warnings: list[str] = []
+    rows: list[CommentRow] = Field(..., min_length=1, max_length=25 * 300)
 
 
 def _run(job_id, req):
     job = jobs[job_id]
     try:
-        job.update(status="running", stage="Searching videos")
-        yt = youtube.get_client()
+        job.update(status="running", stage="Preparing comments")
         pack = analysis.pick_pack(req.query, req.pack)
-        label = req.query
-        if req.mode == "channel":
-            job["stage"] = "Finding channel"
-            channel = youtube.resolve_channel(yt, req.query)
-            label = channel["title"]
-            job["stage"] = f"Loading latest videos from {label}"
-            videos = youtube.list_channel_videos(yt, channel, req.max_videos)
-        else:
-            videos = youtube.search_videos(yt, req.query, req.region.upper(), req.max_videos, req.order)
-        if not videos:
-            raise RuntimeError("No videos found for this query.")
-        job["videos_total"] = len(videos)
-
-        rows, warnings = [], []
-        for i, v in enumerate(videos, 1):
-            job.update(stage=f"Collecting comments ({i}/{len(videos)})", videos_done=i - 1)
-            comments, err = youtube.get_comments(yt, v["video_id"], req.max_comments)
-            if err and not comments:
-                warnings.append(f'"{v["title"][:50]}": no comments ({err.splitlines()[0][:80]})')
-            for c in comments:
-                rows.append({**c, "video_title": v["title"], "channel": v["channel"],
-                             "video_url": v["video_url"]})
-            job["comments_collected"] = len(rows)
-        job["videos_done"] = len(videos)
+        label = req.label or req.query
+        warnings = list(req.warnings)
+        rows = [r.model_dump() for r in req.rows]
 
         df = analysis.clean(pd.DataFrame(rows)) if rows else pd.DataFrame()
         if df.empty:
@@ -110,17 +90,12 @@ def _run(job_id, req):
             ],
         }
         job.update(status="done", stage="Done")
-        cache[_key(req)] = (time.time(), job_id)
     except Exception as e:
         job.update(status="error", error=str(e), stage="Failed")
 
 
 @app.post("/api/analyze")
 def analyze(req: AnalyzeRequest):
-    hit = cache.get(_key(req))
-    if hit and not req.refresh and time.time() - hit[0] < CACHE_TTL and jobs.get(hit[1], {}).get("status") == "done":
-        return {"job_id": hit[1], "cached": True}
-
     job_id = uuid.uuid4().hex[:12]
     jobs[job_id] = {"status": "queued", "stage": "Queued", "videos_total": 0, "videos_done": 0,
                     "comments_collected": 0, "comments_total": 0, "comments_scored": 0}

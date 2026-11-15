@@ -15,12 +15,15 @@ $("form").onsubmit = async (e) => {
   show("progress", true);
   setProgress("Starting…", 3);
   try {
+    localStorage.setItem("yt_key", $("apikey").value.trim());
+    const collected = await collectFromYouTube();
     const res = await fetch("/api/analyze", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mode: $("mode").value, order: $("order").value, pack: $("pack").value,
         query: $("query").value.trim(), region: $("region").value.trim() || "PK",
         max_videos: +$("videos").value, max_comments: +$("comments").value,
+        label: collected.label, warnings: collected.warnings, rows: collected.rows,
       }),
     });
     if (!res.ok) throw new Error((await res.json()).detail?.[0]?.msg || "Request failed");
@@ -32,6 +35,80 @@ $("form").onsubmit = async (e) => {
     $("go").disabled = false;
   }
 };
+
+// ---- YouTube Data API v3, called straight from the browser ----
+$("apikey").value = localStorage.getItem("yt_key") || "";
+
+async function yt(path, params) {
+  const url = new URL("https://www.googleapis.com/youtube/v3/" + path);
+  Object.entries({ ...params, key: $("apikey").value.trim() }).forEach(([k, v]) => v != null && url.searchParams.set(k, v));
+  const res = await fetch(url);
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error?.message || "YouTube API error");
+  return body;
+}
+
+async function resolveChannel(text) {
+  text = text.trim();
+  const byId = text.match(/youtube\.com\/channel\/(UC[\w-]{20,})/) || text.match(/^(UC[\w-]{20,})$/);
+  const handle = text.match(/youtube\.com\/@([\w.\-%]+)/) || text.match(/^@([\w.\-%]+)$/);
+  const user = text.match(/youtube\.com\/user\/([\w.\-]+)/);
+  const base = { part: "snippet,contentDetails" };
+  let r;
+  if (byId) r = await yt("channels", { ...base, id: byId[1] });
+  else if (handle) r = await yt("channels", { ...base, forHandle: "@" + handle[1] });
+  else if (user) r = await yt("channels", { ...base, forUsername: user[1] });
+  else {
+    const q = text.replace(/^.*youtube\.com\/(?:c\/)?/, "");
+    const s = await yt("search", { part: "snippet", q, type: "channel", maxResults: 1 });
+    r = s.items?.length ? await yt("channels", { ...base, id: s.items[0].snippet.channelId }) : { items: [] };
+  }
+  const c = r.items?.[0];
+  if (!c) throw new Error(`Could not find a YouTube channel for "${text}".`);
+  return { title: c.snippet.title, uploads: c.contentDetails.relatedPlaylists.uploads };
+}
+
+async function getComments(videoId, max) {
+  const out = []; let token;
+  while (out.length < max) {
+    let r;
+    try {
+      r = await yt("commentThreads", { part: "snippet", videoId, maxResults: Math.min(100, max - out.length), pageToken: token, textFormat: "plainText" });
+    } catch (e) { return { out, error: e.message }; }
+    for (const it of r.items || []) {
+      const c = it.snippet.topLevelComment.snippet;
+      out.push({ video_id: videoId, comment_text: c.textDisplay, published_at: c.publishedAt, like_count: c.likeCount });
+    }
+    token = r.nextPageToken;
+    if (!token) break;
+  }
+  return { out, error: null };
+}
+
+async function collectFromYouTube() {
+  const mode = $("mode").value, query = $("query").value.trim(), maxV = +$("videos").value, maxC = +$("comments").value;
+  let label = query, videos;
+  setProgress(mode === "channel" ? "Finding channel" : "Searching videos", 3);
+  if (mode === "channel") {
+    const ch = await resolveChannel(query);
+    label = ch.title;
+    const r = await yt("playlistItems", { part: "snippet,contentDetails", playlistId: ch.uploads, maxResults: Math.min(50, maxV) });
+    videos = (r.items || []).map((it) => ({ id: it.contentDetails.videoId, title: it.snippet.title, channel: ch.title }));
+  } else {
+    const r = await yt("search", { part: "snippet", q: query, type: "video", regionCode: ($("region").value.trim() || "PK").toUpperCase(), order: $("order").value, maxResults: maxV });
+    videos = (r.items || []).map((it) => ({ id: it.id.videoId, title: it.snippet.title, channel: it.snippet.channelTitle }));
+  }
+  if (!videos.length) throw new Error("No videos found for this query.");
+  const rows = [], warnings = [];
+  for (const [i, v] of videos.entries()) {
+    setProgress(`Collecting comments (${i + 1}/${videos.length}) — ${rows.length} comments`, 5 + (i / videos.length) * 40);
+    const { out, error } = await getComments(v.id, maxC);
+    if (error && !out.length) warnings.push(`"${v.title.slice(0, 50)}": no comments (${error.split("\n")[0].slice(0, 80)})`);
+    for (const c of out) rows.push({ ...c, video_title: v.title, channel: v.channel, video_url: "https://www.youtube.com/watch?v=" + v.id });
+  }
+  if (!rows.length) throw new Error("No comments found. Try a different query.");
+  return { label, warnings, rows };
+}
 
 async function poll() {
   for (;;) {
