@@ -1,3 +1,13 @@
+---
+title: Comment Sentiment Dashboard
+emoji: 📊
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 8080
+pinned: false
+---
+
 # Comment Sentiment Dashboard
 
 Live dashboard version of `project 1.ipynb`: searches YouTube, collects comments, scores sentiment with
