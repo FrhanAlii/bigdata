@@ -18,11 +18,11 @@ Live dashboard version of `project 1.ipynb`: searches YouTube, collects comments
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-# no .env needed: paste your YouTube Data API v3 key into the dashboard (kept in your browser only)
+copy .env.example .env      # then put your YouTube Data API v3 key in .env
 uvicorn app.main:app --reload
 ```
 Open http://localhost:8000. The first analysis downloads the model (~1 GB); later runs are fast.
-YouTube is called directly from the browser (one run is roughly 1,100 units of the 10,000/day free quota).
+Results for the same query are cached for 30 minutes to save YouTube quota (one run is roughly 1,100 units of the 10,000/day free quota).
 
 ## Tests
 `pytest`
